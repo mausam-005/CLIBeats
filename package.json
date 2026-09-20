@@ -1,0 +1,29 @@
+{
+  "name": "clibeats",
+  "version": "1.0.0",
+  "description": "A terminal music player built with Node.js",
+  "bin": {
+    "clibeats": "./bin/clibeats.js"
+  },
+  "scripts": {
+    "start": "node bin/clibeats.js tui -f ~/Music",
+    "test" : "jest"
+  },
+  "keywords": ["music", "player", "cli", "terminal", "nodejs"],
+  "author": "mausam-005",
+  "license": "MIT",
+  "dependencies": {
+    "blessed"       : "^0.1.81",
+    "chalk"         : "^4.1.2",
+    "commander"     : "^11.1.0",
+    "figlet"        : "^1.7.0",
+    "music-metadata": "^7.14.0"
+  },
+  "devDependencies": {
+    "jest"   : "^29.7.0",
+    "nodemon": "^3.0.1"
+  },
+  "jest": {
+    "testEnvironment": "node"
+  }
+}

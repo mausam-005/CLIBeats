@@ -1,0 +1,17 @@
+node_modules/
+dist/
+renderer/dist/
+renderer/node_modules/
+.DS_Store
+*.log
+npm-debug.log*
+.env
+.env.local
+out/
+build/
+release/
+~/.clibeats/
+*.mp3
+*.wav
+*.ogg
+*.flac
