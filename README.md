@@ -54,6 +54,8 @@ node bin/clibeats.js list /path/to/music
 | `Right` / `l`   | Seek +10 seconds    |
 | `Left` / `h`    | Seek −10 seconds    |
 | `+` / `-`       | Volume up / down    |
+| `/`             | Search tracks       |
+| `d`             | Remove from queue   |
 | `s`             | Toggle shuffle      |
 | `r`             | Cycle repeat mode   |
 | `q`             | Quit                |

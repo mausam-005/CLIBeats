@@ -6,7 +6,7 @@
 // Receives: play | seek | pause | resume | stop | volume
 // Sends:    playing | paused | resumed | stopped | end | tick | error
 
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 
 let afplay       = null;
 let track        = null;
@@ -16,20 +16,49 @@ let position     = 0;
 let startTime    = null;
 let tickInterval = null;
 
+// Helper to check for CLI audio binaries
+function hasBinary(cmd) {
+  try {
+    execSync(`which ${cmd}`, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const HAS_MPV    = hasBinary('mpv');
+const HAS_FFPLAY = !HAS_MPV && hasBinary('ffplay');
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function buildArgs(filePath, offsetSeconds) {
-  if (process.platform === 'darwin') {
-    const vol  = (volume / 100).toFixed(2);
-    const args = ['afplay', '-v', vol];
-    if (offsetSeconds > 0) args.push('-t', String(Math.floor(offsetSeconds)));
+  // If mpv is installed, it provides full seeking and volume control
+  if (HAS_MPV) {
+    const args = ['mpv', '--no-video', `--volume=${volume}`];
+    if (offsetSeconds > 0) args.push(`--start=${Math.floor(offsetSeconds)}`);
     args.push(filePath);
     return args;
   }
+
+  // If ffplay is installed, use native seek and volume
+  if (HAS_FFPLAY) {
+    const args = ['ffplay', '-nodisp', '-autoexit', '-volume', String(volume)];
+    if (offsetSeconds > 0) args.push('-ss', String(Math.floor(offsetSeconds)));
+    args.push(filePath);
+    return args;
+  }
+
+  if (process.platform === 'darwin') {
+    const vol  = (volume / 100).toFixed(2);
+    // Note: afplay does not support start offset (-t specifies duration limit, not start offset)
+    return ['afplay', '-v', vol, filePath];
+  }
+
   if (process.platform === 'win32') {
     return ['powershell', '-c',
       `(New-Object Media.SoundPlayer '${filePath}').PlaySync()`];
   }
+
   // Linux: mpg123 -k <frames> (~38 frames/sec @ 128kbps)
   const args = ['mpg123', '-q'];
   if (offsetSeconds > 0) args.push('-k', String(Math.floor(offsetSeconds * 38)));
@@ -54,7 +83,9 @@ function stopTick() {
 function killAfplay() {
   if (afplay) {
     afplay.removeAllListeners();
-    afplay.kill('SIGKILL');
+    try {
+      afplay.kill('SIGKILL');
+    } catch (_) {}
     afplay = null;
   }
 }
@@ -71,6 +102,10 @@ function playFrom(t, offsetSeconds) {
 
   const [cmd, ...args] = buildArgs(t.filePath, offsetSeconds);
   afplay = spawn(cmd, args, { stdio: 'ignore' });
+
+  if (afplay.pid && process.send) {
+    process.send({ type: 'spawned', pid: afplay.pid });
+  }
 
   afplay.on('close', (code) => {
     stopTick();
@@ -132,12 +167,25 @@ process.on('message', (msg) => {
 
     case 'volume':
       volume = Math.max(0, Math.min(100, msg.level));
+      if (afplay && !paused && track && (HAS_MPV || HAS_FFPLAY || process.platform !== 'darwin')) {
+        playFrom(track, position);
+      }
       break;
   }
 });
 
-// Kill afplay if the parent process disconnects unexpectedly
-process.on('disconnect', () => {
+// Clean up child player on any termination signal, disconnect, or process exit
+function cleanupAndExit() {
+  stopTick();
   killAfplay();
   process.exit(0);
+}
+
+['SIGTERM', 'SIGINT', 'SIGHUP', 'disconnect'].forEach((sig) => {
+  process.on(sig, cleanupAndExit);
+});
+
+process.on('exit', () => {
+  stopTick();
+  killAfplay();
 });

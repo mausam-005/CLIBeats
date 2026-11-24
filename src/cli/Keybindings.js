@@ -43,6 +43,10 @@ class Keybindings {
     s.key('s', () => a.toggleShuffle());
     s.key('r', () => a.cycleRepeat());
 
+    // Search and Playlist Management
+    s.key('/',            () => a.search && a.search());
+    s.key(['d', 'delete'], () => a.removeSelected && a.removeSelected());
+
     // Quit
     s.key(['q', 'C-c'], () => a.quit());
   }

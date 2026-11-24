@@ -20,6 +20,7 @@ class AudioEngine extends EventEmitter {
     this._position  = 0;
     this._volume    = 75;
     this._worker    = null;
+    this._audioPid  = null;
     this._forkWorker();
   }
 
@@ -34,10 +35,30 @@ class AudioEngine extends EventEmitter {
   seek(seconds)    { this._send({ type: 'seek',   seconds }); }
   pause()          { if (!this._isPaused) this._send({ type: 'pause' }); }
   resume()         { if (this._isPaused)  this._send({ type: 'resume' }); }
-  stop()           { this._send({ type: 'stop' }); }
+  stop() {
+    if (this._audioPid) {
+      try {
+        process.kill(this._audioPid, 'SIGKILL');
+      } catch (_) {}
+      this._audioPid = null;
+    }
+    this._send({ type: 'stop' });
+  }
 
   destroy() {
-    if (this._worker) { this._worker.kill(); this._worker = null; }
+    if (this._audioPid) {
+      try {
+        process.kill(this._audioPid, 'SIGKILL');
+      } catch (_) {}
+      this._audioPid = null;
+    }
+    if (this._worker) {
+      this._worker.removeAllListeners();
+      try {
+        this._worker.kill('SIGKILL');
+      } catch (_) {}
+      this._worker = null;
+    }
   }
 
   get isPlaying() { return this._isPlaying && !this._isPaused; }
@@ -51,6 +72,9 @@ class AudioEngine extends EventEmitter {
 
     this._worker.on('message', (msg) => {
       switch (msg.type) {
+        case 'spawned':
+          this._audioPid = msg.pid;
+          break;
         case 'playing':
           this._isPlaying = true;
           this._isPaused  = false;
@@ -72,14 +96,17 @@ class AudioEngine extends EventEmitter {
           this._isPlaying = false;
           this._isPaused  = false;
           this._position  = 0;
+          this._audioPid  = null;
           this.emit('stop');
           break;
         case 'end':
           this._isPlaying = false;
           this._position  = 0;
+          this._audioPid  = null;
           this.emit('end');
           break;
         case 'error':
+          this._audioPid = null;
           this.emit('error', { err: new Error(msg.message) });
           break;
       }

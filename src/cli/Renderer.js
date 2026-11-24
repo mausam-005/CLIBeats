@@ -218,6 +218,49 @@ class Renderer {
     this.screen.render();
   }
 
+  /** Prompt user with an inline search box */
+  promptSearch(callback) {
+    const s = this.screen;
+    const input = blessed.textbox({
+      parent      : s,
+      bottom      : 0,
+      left        : 0,
+      width       : '100%',
+      height      : 3,
+      border      : { type: 'line' },
+      tags        : true,
+      inputOnFocus: true,
+      style       : {
+        fg    : 'white',
+        bg    : '#1a1a2e',
+        border: { fg: 'cyan' },
+      },
+    });
+
+    input.setLabel(' {bold}{cyan-fg}Search Tracks (Enter to submit, Esc to cancel){/} ');
+    s.append(input);
+    input.focus();
+    s.render();
+
+    const cleanup = () => {
+      input.destroy();
+      this._renderHelp();
+      s.render();
+    };
+
+    input.on('submit', (val) => {
+      cleanup();
+      callback(val);
+    });
+
+    input.on('cancel', () => {
+      cleanup();
+      callback(null);
+    });
+
+    input.readInput();
+  }
+
   /** Destroy the screen and restore the terminal */
   destroy() {
     this.screen.destroy();
@@ -230,12 +273,12 @@ class Renderer {
       '{bold}↑↓{/} Nav',
       '{bold}Enter{/} Play',
       '{bold}Space{/} Pause',
-      '{bold}n{/} Next',
-      '{bold}b{/} Prev',
-      '{bold}←→{/} Seek 10s',
+      '{bold}n/b{/} Skip',
       '{bold}+/-{/} Vol',
-      '{bold}s{/} Shuffle',
-      '{bold}r{/} Repeat',
+      '{bold}/{/} Search',
+      '{bold}d{/} Remove',
+      '{bold}s{/} Shf',
+      '{bold}r{/} Rep',
       '{bold}q{/} Quit',
     ];
     this.help.setContent(' ' + keys.join('  ·  '));

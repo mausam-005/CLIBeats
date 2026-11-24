@@ -26,6 +26,7 @@ class Dashboard {
     this._config  = Config.load();
     this._cursor  = 0;        // row highlighted in the list (not necessarily playing)
     this._playing = -1;       // index of song currently playing
+    this._destroyed = false;
 
     this._player   = new Player();
     this._renderer = new Renderer();
@@ -83,6 +84,14 @@ class Dashboard {
       );
       this._renderer.screen.render();
     });
+
+    const onSignal = () => {
+      this.destroy();
+      process.exit(0);
+    };
+    process.once('SIGINT', onSignal);
+    process.once('SIGTERM', onSignal);
+    process.once('exit', () => this.destroy());
 
     // ── Keybindings ────────────────────────────────────────────────────────
 
@@ -151,6 +160,37 @@ class Dashboard {
         this._renderer.renderHeader(this._player.state);
       },
 
+      removeSelected: () => {
+        if (this._tracks.length <= 1) return;
+        this._player.queue.remove(this._cursor);
+        this._tracks = this._player.queue.tracks;
+        if (this._cursor >= this._tracks.length) {
+          this._cursor = Math.max(0, this._tracks.length - 1);
+        }
+        if (this._playing === this._cursor) {
+          this._player.togglePlay();
+        } else if (this._playing > this._cursor) {
+          this._playing--;
+        }
+        this._renderer.renderList(this._tracks, this._cursor, this._playing);
+      },
+
+      search: () => {
+        this._renderer.promptSearch((query) => {
+          if (!query || !query.trim()) return;
+          const q = query.trim().toLowerCase();
+          const matchIdx = this._tracks.findIndex((t) =>
+            (t.title && t.title.toLowerCase().includes(q)) ||
+            (t.artist && t.artist.toLowerCase().includes(q)) ||
+            (t.filename && t.filename.toLowerCase().includes(q))
+          );
+          if (matchIdx !== -1) {
+            this._cursor = matchIdx;
+            this._renderer.renderList(this._tracks, this._cursor, this._playing);
+          }
+        });
+      },
+
       quit: () => {
         this.destroy();
         process.exit(0);
@@ -162,6 +202,8 @@ class Dashboard {
 
   /** Clean shutdown: stop audio, kill worker, persist config, destroy TUI. */
   destroy() {
+    if (this._destroyed) return;
+    this._destroyed = true;
     this._player.destroy();
     this._saveConfig();
     this._renderer.destroy();
